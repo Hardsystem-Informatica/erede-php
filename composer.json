@@ -1,7 +1,7 @@
 {
-  "name": "developersrede/erede-php",
+  "name": "hardsystem/erede-php",
   "version": "5.2.1",
-  "description": "e.Rede integration SDK",
+  "description": "e.Rede integration SDK for hardsystem",
   "minimum-stability": "stable",
   "license": "MIT",
   "type": "library",
@@ -26,8 +26,8 @@
   },
   "authors": [
     {
-      "name": "João Batista Neto",
-      "email": "neto.joaobatista@gmail.com"
+       "name": "Hardsystem",
+       "email": "contato@hardsystem.com.br"
     }
   ]
 }
