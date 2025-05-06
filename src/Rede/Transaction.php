@@ -919,16 +919,18 @@ class Transaction implements RedeSerializable, RedeUnserializable
    */
   public function threeDSecure(
     Device $device,
+    Address $billing,
+    string $ipAddress,
     string $onFailure = ThreeDSecure::DECLINE_ON_FAILURE,
     string $mpi = ThreeDSecure::MPI_REDE,
     string $directoryServerTransactionId = '',
     ?string $userAgent = null,
     int $threeDIndicator = 2
   ): static {
-    $threeDSecure = new ThreeDSecure($device, $onFailure, $mpi, $userAgent);
+    $threeDSecure = new ThreeDSecure($device, $billing, $onFailure, $mpi, $userAgent);
     $threeDSecure->setThreeDIndicator($threeDIndicator);
     $threeDSecure->setDirectoryServerTransactionId($directoryServerTransactionId);
-
+    $threeDSecure->setIpAddress($ipAddress);
     $this->threeDSecure = $threeDSecure;
 
     return $this;
