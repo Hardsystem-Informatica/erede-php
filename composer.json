@@ -1,6 +1,5 @@
 {
   "name": "hardsystem/erede-php",
-  "version": "5.2.1",
   "description": "e.Rede integration SDK for hardsystem",
   "minimum-stability": "stable",
   "license": "MIT",
