@@ -80,8 +80,8 @@ class ThreeDSecure implements RedeSerializable
    * @param string|null $userAgent The user' user-agent.
    */
   public function __construct(
-    private readonly ?Device $Device = null,
-    private readonly ?Address $billing,
+    private readonly ?Device $device = null,
+    private readonly ?Address $billing = null,
     private string $onFailure = self::DECLINE_ON_FAILURE,
     string $mpi = ThreeDSecure::MPI_REDE,
     string $userAgent = null
