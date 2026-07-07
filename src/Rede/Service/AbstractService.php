@@ -5,6 +5,8 @@ namespace Rede\Service;
 use CurlHandle;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
+use Rede\Auth\AccessToken;
+use Rede\Auth\Authenticator;
 use Rede\eRede;
 use Rede\Exception\RedeException;
 use Rede\Store;
@@ -76,7 +78,8 @@ abstract class AbstractService
                 $userAgent
             ),
             'Accept: application/json',
-            'Transaction-Response: brand-return-opened'
+            'Transaction-Response: brand-return-opened',
+            'Authorization: ' . $this->resolveAccessToken()->authorizationHeader(),
         ];
 
         $curl = curl_init($this->store->getEnvironment()->getEndpoint($this->getService()));
@@ -84,12 +87,6 @@ abstract class AbstractService
         if (!$curl instanceof CurlHandle) {
             throw new RuntimeException('Was not possible to create a curl instance.');
         }
-
-        curl_setopt(
-            $curl,
-            CURLOPT_USERPWD,
-            sprintf('%s:%s', $this->store->getFiliation(), $this->store->getToken())
-        );
 
         curl_setopt($curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, true);
@@ -121,7 +118,7 @@ abstract class AbstractService
                     "Request Rede\n%s %s\n%s\n\n%s",
                     $method,
                     $this->store->getEnvironment()->getEndpoint($this->getService()),
-                    implode("\n", $headers),
+                    preg_replace('/^(Authorization:\s*\S+\s+).*$/im', '$1***', implode("\n", $headers)),
                     preg_replace('/"(cardHolderName|cardnumber|securitycode)":"[^"]+"/i', '"\1":"***"', $body)
                 )
             )
@@ -151,6 +148,26 @@ abstract class AbstractService
         curl_close($curl);
 
         return $this->parseResponse($response, $httpInfo['http_code']);
+    }
+
+    /**
+     * Resolves the OAuth 2.0 access token to authorize the request.
+     *
+     * The token is normally resolved by {@see eRede} (with the shared cache) and
+     * left on the Store. The Authenticator fallback below only kicks in when a
+     * service is used directly, outside the eRede facade.
+     *
+     * @return AccessToken
+     */
+    private function resolveAccessToken(): AccessToken
+    {
+        $token = $this->store->getAccessToken();
+
+        if ($token !== null) {
+            return $token;
+        }
+
+        return (new Authenticator($this->store, null, $this->logger))->validToken();
     }
 
     /**

@@ -2,6 +2,11 @@
 
 SDK de integração eRede
 
+> **Novidade na versão `0.3.0`:** a autenticação foi migrada para **OAuth 2.0** e os
+> endpoints **v2** da Rede (o antigo HTTP Basic/v1 foi desligado pela Rede em
+> **05/01/2026**). A fachada (`Store`/`eRede`) continua a mesma — detalhes em
+> **[Autenticação (OAuth 2.0)](#autenticação-oauth-20)**.
+
 # Funcionalidades
 
 Este SDK possui as seguintes funcionalidades:
@@ -13,6 +18,70 @@ Este SDK possui as seguintes funcionalidades:
 * Zero dollar
 * iata
 * MCC dinâmico.
+
+# Autenticação (OAuth 2.0)
+
+> **A partir da versão `0.3.0`** a biblioteca usa **OAuth 2.0** e os endpoints **v2**
+> da Rede. O HTTP Basic (v1) foi desligado pela Rede em **05/01/2026**.
+
+A mudança é **retrocompatível na fachada**: continue criando `new Store($pv, $chave, $env)`
+e `new eRede($store)` como antes. Internamente a biblioteca passou a:
+
+1. obter um `access_token` no endpoint OAuth (`grant_type=client_credentials`);
+2. reutilizá-lo (dura ~24 min) e renová-lo com folga (~5 min antes de expirar);
+3. enviar `Authorization: Bearer {access_token}` em todas as transações v2.
+
+## Credenciais
+
+As credenciais são **as mesmas** do Portal Use Rede, apenas renomeadas pelo OAuth 2.0.
+Quem já transacionava no Basic **não precisa recadastrar nada** — a Chave de Integração
+existente continua válida.
+
+| Portal Use Rede      | OAuth 2.0      | Argumento do `Store`  |
+|----------------------|----------------|-----------------------|
+| PV                   | `clientId`     | 1º — `filiation`      |
+| Chave de Integração  | `clientSecret` | 2º — `token`          |
+| Token de acesso      | `access_token` | — (gerado em runtime) |
+
+Os aliases `Store::getClientId()` e `Store::getClientSecret()` estão disponíveis; os
+getters antigos (`getFiliation()` / `getToken()`) continuam funcionando.
+
+## Cache do token (opcional, PSR-16)
+
+Por padrão o `access_token` é reutilizado **em memória** durante a mesma request. Para
+compartilhá-lo entre requests (recomendado em produção), injete um backend **PSR-16**
+(`Psr\SimpleCache\CacheInterface`) — o cache do Laravel já implementa essa interface:
+
+```php
+<?php
+use Rede\Store;
+use Rede\Environment;
+use Rede\eRede;
+
+$store = new Store('PV', 'CHAVE_INTEGRACAO', Environment::production());
+
+// Sem cache: token reutilizado apenas dentro da request (fallback em memória)
+$rede = new eRede($store);
+
+// Com cache PSR-16 compartilhado entre requests (chave por clientId)
+$rede = new eRede($store, logger: null, cache: Cache::store()); // Laravel
+
+// Opcional: aquece/valida o token manualmente (útil em warm-up ou testes)
+$accessToken = $rede->authenticate();
+```
+
+Sem backend injetado, no pior caso é feita **uma** chamada ao endpoint de token por
+request HTTP. Com o backend, o token é guardado como value object serializável
+(`Rede\Auth\AccessToken`), com TTL alinhado à expiração informada pela Rede.
+
+## Endpoints por ambiente
+
+|                     | Sandbox                                                     | Produção                                              |
+|---------------------|------------------------------------------------------------|-------------------------------------------------------|
+| **Token**           | `https://rl7-sandbox-api.useredecloud.com.br/oauth2/token` | `https://api.userede.com.br/redelabs/oauth2/token`    |
+| **Transações (v2)** | `https://sandbox-erede.useredecloud.com.br/v2/transactions`| `https://api.userede.com.br/erede/v2/transactions`    |
+
+Escolhidos automaticamente por `Environment::sandbox()` / `Environment::production()`.
 
 # Instalação
 
@@ -27,7 +96,7 @@ Se já possui um arquivo `composer.json`, basta adicionar a seguinte dependênci
 ```json
 {
 "require": {
-    "developersrede/erede-php": "*"
+    "hardsystem/erede-php": "^0.3"
 }
 }
 
@@ -42,7 +111,7 @@ composer install
 Alternativamente, você pode executar diretamente em seu terminal:
 
 ```
-composer require "developersrede/erede-php"
+composer require "hardsystem/erede-php:^0.3"
 ```
 
 # Testes
@@ -56,6 +125,26 @@ export REDE_TOKEN=5678
 
 ./tests
 ```
+
+## Testes unitários vs. integração
+
+A partir da `0.3.0` os testes estão divididos em dois _suites_ (`phpunit.xml.dist`):
+
+- **`unit`** — não acessam a rede nem exigem credenciais (ex.: `AccessToken`,
+  `AuthenticationService`, `Authenticator`). Podem rodar a qualquer momento:
+
+  ```
+  ./vendor/bin/phpunit --testsuite unit
+  ```
+
+- **`integration`** — batem no sandbox v2 e exigem `REDE_PV` (clientId) e `REDE_TOKEN`
+  (clientSecret) de OAuth válidos:
+
+  ```
+  export REDE_PV=<clientId>
+  export REDE_TOKEN=<clientSecret>
+  ./vendor/bin/phpunit --testsuite integration
+  ```
 
 Os testes também podem ser executados através de um container com a configuração ideal para o projeto. Para isso, basta
 fazer:

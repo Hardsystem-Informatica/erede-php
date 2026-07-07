@@ -7,8 +7,15 @@ use stdClass;
 class Environment implements RedeSerializable
 {
     public const PRODUCTION = 'https://api.userede.com.br/erede';
-    public const SANDBOX = 'https://api.userede.com.br/desenvolvedores';
-    public const VERSION = 'v1';
+    public const SANDBOX = 'https://sandbox-erede.useredecloud.com.br';
+    public const VERSION = 'v2';
+
+    /**
+     * OAuth 2.0 token endpoints. The token host differs from the transaction
+     * host (especially in sandbox), so it is kept apart from {@see $endpoint}.
+     */
+    public const TOKEN_URL_PRODUCTION = 'https://api.userede.com.br/redelabs/oauth2/token';
+    public const TOKEN_URL_SANDBOX = 'https://rl7-sandbox-api.useredecloud.com.br/oauth2/token';
 
     /**
      * @var string|null
@@ -26,13 +33,20 @@ class Environment implements RedeSerializable
     private string $endpoint;
 
     /**
-     * Creates an environment with its base url and version
+     * @var string
+     */
+    private string $tokenEndpoint;
+
+    /**
+     * Creates an environment with its base url, version and OAuth token endpoint
      *
      * @param string $baseUrl
+     * @param string $tokenEndpoint
      */
-    private function __construct(string $baseUrl)
+    private function __construct(string $baseUrl, string $tokenEndpoint)
     {
         $this->endpoint = sprintf('%s/%s/', $baseUrl, Environment::VERSION);
+        $this->tokenEndpoint = $tokenEndpoint;
     }
 
     /**
@@ -40,7 +54,7 @@ class Environment implements RedeSerializable
      */
     public static function production(): Environment
     {
-        return new Environment(Environment::PRODUCTION);
+        return new Environment(Environment::PRODUCTION, Environment::TOKEN_URL_PRODUCTION);
     }
 
     /**
@@ -48,7 +62,7 @@ class Environment implements RedeSerializable
      */
     public static function sandbox(): Environment
     {
-        return new Environment(Environment::SANDBOX);
+        return new Environment(Environment::SANDBOX, Environment::TOKEN_URL_SANDBOX);
     }
 
     /**
@@ -59,6 +73,14 @@ class Environment implements RedeSerializable
     public function getEndpoint(string $service): string
     {
         return $this->endpoint . $service;
+    }
+
+    /**
+     * @return string Gets the OAuth 2.0 token endpoint for this environment
+     */
+    public function getTokenEndpoint(): string
+    {
+        return $this->tokenEndpoint;
     }
 
     /**

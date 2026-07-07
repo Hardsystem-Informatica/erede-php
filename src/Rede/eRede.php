@@ -3,6 +3,9 @@
 namespace Rede;
 
 use Psr\Log\LoggerInterface;
+use Psr\SimpleCache\CacheInterface;
+use Rede\Auth\AccessToken;
+use Rede\Auth\Authenticator;
 use Rede\Service\CancelTransactionService;
 use Rede\Service\CaptureTransactionService;
 use Rede\Service\CreateTransactionService;
@@ -27,13 +30,38 @@ class eRede
     private ?string $platformVersion = null;
 
     /**
+     * Orchestrates the OAuth 2.0 token (memory + optional PSR-16 cache).
+     *
+     * @var Authenticator
+     */
+    private readonly Authenticator $authenticator;
+
+    /**
      * eRede constructor.
      *
      * @param Store                $store
      * @param LoggerInterface|null $logger
+     * @param CacheInterface|null  $cache  Optional PSR-16 backend to share the
+     *                                     access token across requests. Without
+     *                                     it the token is cached in memory only.
      */
-    public function __construct(private readonly Store $store, private readonly ?LoggerInterface $logger = null)
+    public function __construct(
+        private readonly Store $store,
+        private readonly ?LoggerInterface $logger = null,
+        ?CacheInterface $cache = null,
+    ) {
+        $this->authenticator = new Authenticator($store, $cache, $logger);
+    }
+
+    /**
+     * Resolves (and caches) a valid access token. Useful for warm-up/testing;
+     * the transactional methods call it automatically before operating.
+     *
+     * @return AccessToken
+     */
+    public function authenticate(): AccessToken
     {
+        return $this->authenticator->validToken();
     }
 
     /**
@@ -54,6 +82,8 @@ class eRede
      */
     public function create(Transaction $transaction): Transaction
     {
+        $this->authenticator->validToken();
+
         $service = new CreateTransactionService($this->store, $transaction, $this->logger);
         $service->platform($this->platform, $this->platformVersion);
 
@@ -81,6 +111,8 @@ class eRede
      */
     public function cancel(Transaction $transaction): Transaction
     {
+        $this->authenticator->validToken();
+
         $service = new CancelTransactionService($this->store, $transaction, $this->logger);
         $service->platform($this->platform, $this->platformVersion);
 
@@ -105,6 +137,8 @@ class eRede
      */
     public function get(string $tid): Transaction
     {
+        $this->authenticator->validToken();
+
         $service = new GetTransactionService(store: $this->store, logger: $this->logger);
         $service->platform($this->platform, $this->platformVersion);
         $service->setTid($tid);
@@ -119,6 +153,8 @@ class eRede
      */
     public function getByReference(string $reference): Transaction
     {
+        $this->authenticator->validToken();
+
         $service = new GetTransactionService(store: $this->store, logger: $this->logger);
         $service->platform($this->platform, $this->platformVersion);
         $service->setReference($reference);
@@ -133,6 +169,8 @@ class eRede
      */
     public function getRefunds(string $tid): Transaction
     {
+        $this->authenticator->validToken();
+
         $service = new GetTransactionService(
             store: $this->store,
             logger: $this->logger
@@ -172,6 +210,8 @@ class eRede
      */
     public function capture(Transaction $transaction): Transaction
     {
+        $this->authenticator->validToken();
+
         $service = new CaptureTransactionService($this->store, $transaction, $this->logger);
         $service->platform($this->platform, $this->platformVersion);
 
